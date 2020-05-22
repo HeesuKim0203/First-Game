@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Putting JS in a webpage</title>
+        <link rel="stylesheet" href="css.css">
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@700&display=swap" rel="stylesheet">
+        <script>
+             window.onload = function() {
+
+                 const canvas = document.getElementById('mycanvas') ;
+                 const canvasWrapper = document.getElementById('wrapper') ;
+                 const footer = document.getElementById('footer') ;
+                 console.log(canvasWrapper) ;
+                 const user = new User() ;
+                 const shotData = new Set() ;
+                 let pointer = 0 ;
+
+                 window.addEventListener('keydown', (e) => {
+                    if(e.keyCode == 39) {
+                        user.user_right = true ;
+                    }else if(e.keyCode == 37) {
+                        user.user_left = true ;
+                    }else if(e.keyCode == 32) {
+                        user.user_shot = true ;
+                        if(user.user_shot) createShot(user) ;
+                    }
+                 }, false ) ;
+                 window.addEventListener('keyup', (e) => {
+                    if(e.keyCode == 39) {
+                        user.user_right = false ;
+                    }else if(e.keyCode == 37) {
+                        user.user_left = false ;
+                    }else if(e.keyCode == 32) {
+                        user.user_shot = false ; 
+                    }
+                 }, false ) ;
+
+                 const ctx = canvas.getContext('2d') ;
+                 
+                 const well = { left : 0, top : 0, right : parseInt(canvas.width), bottom : parseInt(canvas.height) } ;
+                 const STACT_NUM = 6, TIME_INTERVAL = 25  ; 
+
+                 let outCounte = 3 ;
+                
+                const stackData = new Set(), dropData = new Set()  ;
+
+                 for(let i = 0 ; i < STACT_NUM ; i++) {
+                    const newStack = new Stack() ;
+                    stackData.add(newStack) ;
+                 }
+                 const lifeNode = document.createElement('h3') ;
+                 const scoreNode = document.createElement('h3') ;
+                 
+                 canvasWrapper.appendChild(lifeNode) ;
+                 canvasWrapper.appendChild(scoreNode) ;
+                 scoreNode.className = "score" ;
+                 lifeNode.className = "life" ;
+                 
+
+                 scoreNode.innerHTML = `score : ${pointer}` ;
+                 lifeNode.innerHTML = `life : ${outCounte}` ;
+                 canvasWrapper.appendChild(lifeNode) ;
+                 canvasWrapper.appendChild(scoreNode) ;
+
+                 const dropStop = setInterval(dropCreate, 1000) ;
+                 const stop = setInterval(drawAll, TIME_INTERVAL) ;
+
+                 function drawAll() {
+
+                    if(stackData.size == 0) gameEnd('your win') ;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height) ;
+
+                    const stackAll = stackData.values() ;
+                    for(let stack of stackAll) {
+                        stack.collisionWell(well).move().draw(ctx) ;
+                        if(stack.state == 1) stackData.delete(stack) ;
+                    }
+
+                    const shotAll = shotData.values() ;
+                    for(let shot of shotAll) {
+                        shot.collisionWell(well).move().draw(ctx) ;
+                        if(shot.state == 1) shotData.delete(shot) ;
+                        const stackAll2 = stackData.values() ;
+                        for(let stack of stackAll2) {
+                            if( stack.x < shot.x && shot.x < stack.x + stack.width ) {
+                                if(stack.y + 20 >= shot.y) {
+                                    stackData.delete(stack) ;
+                                    shotData.delete(shot) ;
+                                    const newStack = new Stack() ;
+                                    stackData.add(newStack) ;
+                                    scoreNode.innerHTML = `score : ${pointer += 50}` ;
+                                }
+                            }   
+                        }
+                    }
+                    
+                    user.move().collisionWell(well).draw(ctx) ;
+
+                    const dropAll = dropData.values() ;
+                    for(let drop of dropAll) {
+                        drop.collisionWell(well).move().draw(ctx) ;
+                        if(drop.state == 1) dropData.delete(drop) ;
+                        if( drop.x > user.x && drop.x < user.x + user.width && user.color === '#fff') {
+                            if( user.y < drop.y + drop.height ) {
+                                user.color = 'rgba(255, 255, 255, 0.4)' ;
+                                outCounte-- ;
+                                const dan = document.createElement('h3') ;
+                                canvasWrapper.appendChild(dan) ;
+                                dan.innerHTML = "Your Life down !!"
+                                dan.className = "dan" ;
+                                lifeNode.innerHTML = `life : ${outCounte}`  ;
+                                setTimeout(() => {
+                                     user.color = '#fff' ; 
+                                     canvasWrapper.removeChild(dan) ;
+                                }, 1000) ;
+                            }
+                        }
+                    }
+                    user.move().draw(ctx) ;
+                    if(outCounte == 0) gameEnd('game over..... your lose') ;
+                 } ;
+
+                 function dropCreate() {
+                    const stackKeys = stackData.keys() ;
+                    for(let stack of stackKeys) {
+                        const newDrop = new Drop( stack.x + (stack.width/2), stack.y, stack.color ) ;
+                        dropData.add(newDrop) ;
+                    } ;
+                } ;
+                function gameEnd(str) {
+                    const h1 = document.createElement('h1') ;
+                    h1.innerHTML = str ;
+                    footer.appendChild(h1) ;
+                    h1.className = "game_over"
+                    clearInterval(stop) ;
+                    clearInterval(dropStop) ;
+                    return ;
+                } ;
+                function createShot(user) {
+                    const shot = new Drop(user.x + (user.width / 2), user.y, '#fff', -10) ; 
+                    shotData.add( shot ) ;
+                }
+             } ;
+             const module = {
+                 move : function() {
+                     this.x += ( this.vx || 0 ) ;
+                     this.y += ( this.vy || 0 ) ;
+
+                     if(this.user_left) {
+                        this.x -= 3 ;
+                     }
+                     if(this.user_right) {
+                        this.x += 3 ;
+                     }
+                     return this ;
+                 },
+                 draw : function(ctx) {
+                     ctx.fillStyle = this.color ;
+                     ctx.fillRect(this.x, this.y, this.width, this.height) ;
+                     return this ;
+                 }
+            }
+             function Stack() {
+                 this.x = Math.floor(Math.random() * 600 ) + 1 ;
+                 this.y = 0 ;
+                 this.vx = ((Math.random() + 2) * 2) * (Math.random() * 2 - 1) ;
+                 this.vy = (Math.random() + 1 ) * 0.3 ;
+                 this.width = 80  ;
+                 this.height = 20  ;
+
+                 const r = Math.floor(Math.random() * 500) ;
+                 const g = Math.floor(Math.random() * 500) ;
+                 const b = Math.floor(Math.random() * 200) ;
+                 this.color = `rgb(${r},${g},${b})` ;
+                 this.state = 0 ;
+             }
+             Stack.prototype ={
+                 collisionWell : function(well) {
+                     if( this.x + this.width > well.right ) {
+                         if( this.vx > 0 ) this.vx *= - 1 ;
+                     }
+                     if( this.x < well.left ) {
+                        if(this.vx < 0) this.vx *= -1 ;
+                     } 
+                     if( this.y > well.bottom - this.height) this.state = 1 ;
+                     return this ;
+                 },
+                 constructor : Stack 
+             } ;
+             function Drop(x, y, color, vy = 4 + Math.random() * 6.8) {
+                this.x = x ;
+                this.y = y ;
+                this.vy = vy ;
+                this.width = 10 ;
+                this.height = 20 ;
+                this.color = color ;
+                this.state = 0 ;
+             }
+             Drop.prototype = {
+                 collisionWell : function(well) {
+                    
+                     if( this.y > well.bottom ) this.state = 1 ;
+                     if( this.y < well.top ) this.state = 1 ;
+                     return this ;
+                 },
+                 constructor : Drop
+             } ;
+             function User() {
+                 this.x = 340 ;
+                 this.y = 490 ;
+                 this.vx = 0 ;
+                 this.width = 60 ;
+                 this.height = 10 ;
+                 this.color = '#fff' ;
+                 this.user_right = false ;
+                 this.user_left = false ;
+                 this.user_shot = false ;
+             }
+             User.prototype = {
+                 collisionWell : function(well) {
+
+                     if( this.x + this.width > well.right ) this.x = well.right - this.width ;
+                     if(  this.x < well.left ) this.x = well.left ;
+                     return this ;
+                 },
+                 constructor : Drop
+             } ;
+             Object.setPrototypeOf(Drop.prototype, module) ;
+             Object.setPrototypeOf(Stack.prototype, module) ;
+             Object.setPrototypeOf(User.prototype, module) ;
+        </script>
+    </head>
+    <body>
+        <main id="main">
+            <div id="wrapper">
+                <canvas id = "mycanvas" width = "780px" height = "500px" style = "background : black ;"></canvas>
+            </div>
+        </main>
+        <aside id="aside">
+            <header id="header">
+                <h1 class="title" >Flight Game</h1>
+                <p class="description">
+                    Use the Left and Right Arrows or A and D keys to move, Spacebar to shoot.
+
+Click here to play in full mode, click the game to pause and take a break. Follow me on CodePen
+                </p>
+            </header>
+            <footer id="footer"></footer>
+        </aside>
+    </body>
+</html>
